@@ -1,0 +1,595 @@
+---
+title: Multiple Regression Analysis on Birthweight (Executive Summary)
+
+# Use letters for affiliations
+author:
+  - name: Taoran Bu, Yiren Cao, Mingze Gong, Rajat Lal, Yu Qiu
+    affiliation: a
+  # - name: Second Author
+  #   affiliation: a,b
+address:
+  - code: a
+    address: M13_early_3, USYD
+  # - code: b
+  #   address: Department of Neat Tricks, Whereever State University, Someplace, MC, 67890
+    
+# Optional: line of arbitrary text with additional information.
+# Could be used, for example, to mention the bibliographic info in a post-print.
+# If not specified, defaults to "This version was compiled on \today"
+#date_subtitle: Published in *Journal of Statistical Software*, 2018
+
+# For footer text  TODO(fold into template, allow free form two-authors)
+lead_author_surname: Taoran Bu,Rajat Lal (Data Description); Yiren Cao, Yu Qiu (Analysis); Mingze Gong (Results & Conclusion) 
+
+# Place eg a DOI URL or CRAN Package URL here
+#doi_footer: "https://cran.r-project.org/package=YourPackage"
+
+# Abstract
+abstract: |
+   Continuing with our presentation, we summarise all critical findings into this report and dig deep into the interaction effect between certain variables to find a more appropriate model.
+
+# Optional: Acknowledgements
+
+
+# Optional: One or more keywords
+# keywords:
+#   - one
+#   - two
+#   - optional
+#   - keywords
+#   - here
+
+# Paper size for the document, values of letter and a4
+papersize: letter
+
+# Font size of the document, values of 9pt (default), 10pt, 11pt and 12pt
+fontsize: 9pt
+
+# Optional: Force one-column layout, default is two-column
+#one_column: true
+
+# Optional: Enables lineno mode, but only if one_column mode is also true
+#lineno: true
+
+# Optional: Enable one-sided layout, default is two-sided
+#one_sided: true
+
+# Optional: Enable section numbering, default is unnumbered
+#numbersections: true
+
+# Optional: Specify the depth of section number, default is 5
+#secnumdepth: 5
+
+# Optional: Skip inserting final break between acknowledgements, default is false
+skip_final_break: true
+
+# Optional: Bibliography 
+#bibliography: ref
+
+# Optional: Enable a 'Draft' watermark on the document
+#watermark: true
+
+# Customize footer, eg by referencing the vignette
+footer_contents: See [Pinp is not PNAS](https://github.com/eddelbuettel/pinp) for the template
+
+# Produce a pinp document
+output: pinp::pinp
+
+# Required: Vignette metadata for inclusion in a package.
+vignette: >
+  %\VignetteIndexEntry{YourPackage-vignetteentry}
+  %\VignetteKeywords{YourPackage, r, anotherkeyword}
+  %\VignettePackage{YourPackage}
+  %\VignetteEngine{knitr::rmarkdown}
+---
+```{r, load_refs, echo=FALSE, cache=FALSE}
+# library(RefManageR)
+# library(bibtex)
+# BibOptions(check.entries = FALSE, 
+#            bib.style = "authoryear", 
+#            cite.style = 'authoryear', 
+#            style = "markdown",
+#            hyperlink = FALSE, 
+#            dashed = FALSE)
+# myBib <- ReadBib("ref.bib", check = FALSE)
+```
+
+```{r, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+library(janitor)
+library(skimr)
+library(tidyr)
+library(MASS)
+library(readr)
+library(ggfortify)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(visdat)
+library(sjPlot)
+library(leaps)
+library(caret)
+```
+
+
+```{r, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+data = MASS::birthwt
+data = data %>% mutate(
+  low = as.factor(low),
+  race = as.character(race),
+  smoke = as.character(smoke),
+  ui = as.character(ui),
+  ht = as.character(ht)
+)
+
+data_without_low = subset(data, select = -low)
+data_with_low = data
+```
+
+
+```{r,include=FALSE, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+data_without_low_for_correlation = data_without_low
+data_without_low_for_correlation[] <- lapply(data_without_low_for_correlation,                    function(x)as.numeric(as.character(x)))
+qtlcharts::iplotCorr(data_without_low_for_correlation) # non-multicollinearity
+
+lm1_without_low = lm(bwt ~ ., data = data_without_low)
+autoplot(lm1_without_low, which = 1:2) # linearity + normality
+```
+
+```{r, include=FALSE, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+data = data %>% mutate(
+  race = case_when(
+    race == 1 ~ "white",
+    race == 2 ~ "black",
+    race == 3 ~ "other"
+  )
+)
+
+data = data %>% mutate(
+  ui = case_when(
+    ui == 1 ~ "yes",
+    ui == 0 ~ "no"
+  )
+)
+
+data = data %>% mutate(
+  ht = case_when(
+    ht == 1 ~ "yes",
+    ht == 0 ~ "no"
+  )
+)
+
+data = data %>% mutate(
+  smoke = case_when(
+    smoke == 1 ~ "yes",
+    smoke == 0 ~ "no"
+  )
+)
+
+data = data %>% mutate(
+  low = case_when(
+    low == 1 ~ "yes",
+    low == 0 ~ "no"
+  )
+)
+
+data_without_low = subset(data, select = -low)
+data_with_low = data
+```
+
+
+```{r, include=FALSE, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+M1 = lm1_without_low  # Full model
+M0 = lm(bwt ~ 1, data = data_without_low)  # Null model
+```
+
+
+```{r, include=FALSE, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+# drop1(M1, test = "F")
+# M2 = update(M1, . ~ . - ftv)
+# drop1(M2, test = "F")
+# M3 = update(M2, . ~ . - age)
+# drop1(M3, test = "F")
+# M4 = update(M3, . ~ . - ptl)
+# drop1(M4, test = "F")
+
+step(M1)
+```
+
+
+```{r, include=FALSE, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+step.back.aic = step(M1, direction = "backward", trace = FALSE)
+round(summary(step.back.aic)$coef,3)
+step.back.aic %>%broom::glance() %>% round(2) %>% t()
+```
+
+
+```{r, include=FALSE, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+step.fwd.aic = step(M0, 
+                    scope = list(lower = M0, upper = M1), 
+                    direction = "forward", trace = FALSE)
+round(summary(step.fwd.aic)$coef,3)
+step.back.aic %>%broom::glance() %>% round(2) %>% t()
+```
+
+```{r, include=FALSE, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+library(equatiomatic)
+equatiomatic::extract_eq(step.fwd.aic, intercept = "beta",use_coefs = TRUE)
+```
+
+
+```{r, include=FALSE, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+exh = regsubsets(bwt~., data = data_without_low, nvmax = 8)
+summary(exh)$outmat
+```
+
+```{r, include=FALSE, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+cv_without_low = train(
+  bwt ~ lwt + race + smoke + ht+ ui, data_without_low,
+  method = "lm",
+  trControl = trainControl(
+    method = "cv", number = 10,
+    verboseIter = FALSE
+  )
+)
+
+cv_without_low
+```
+
+
+```{r, include=FALSE, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+autoplot(step.fwd.aic, which = 1:2)
+#GGally::ggpairs(data_without_low %>% select(lwt, race, smoke, ht,ui, bwt))
+```
+
+
+```{r, include=FALSE, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+reg1 = lm(bwt ~ ., data = data_with_low)
+autoplot(reg1, which = 1:2)
+```
+
+```{r, include=FALSE, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+W1 = reg1  # full model
+W0 = lm(bwt ~ 1, data = data_with_low) # null model
+```
+
+```{r, include=FALSE, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+step(W1)
+```
+
+
+```{r, include=FALSE, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+step.back.aic_with_low = step(W1, direction = "backward", trace = FALSE)
+round(summary(step.back.aic_with_low)$coef,3)
+step.back.aic_with_low %>%broom::glance() %>% round(2) %>% t()
+```
+
+
+```{r, include=FALSE, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+step.fwd.aic_with_low = step(W0, scope = list(lower = W0, upper = W1), direction = "forward", trace = FALSE)
+summary(step.fwd.aic_with_low)
+```
+
+```{r, include=FALSE, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+exh = regsubsets(bwt~., data = data_with_low, nvmax = 9)
+summary(exh)$outmat
+```
+
+```{r, include=FALSE, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+cv_with_low = train(
+  bwt ~ low + ui+ smoke + race, data,
+  method = "lm",
+  trControl = trainControl(
+    method = "cv", number = 10,
+    verboseIter = FALSE
+  )
+)
+library(xtable)
+```
+
+```{r, include=FALSE, echo = FALSE, results='hide',  message=FALSE, warning=FALSE}
+cv_with_low
+cv_without_low
+```
+
+\vspace{-1cm}
+## Data description
+
+### Data source
+
+The data was collected from Baystate Medical  Center, Springfield, Massachusetts in 1986. The dataset is accessible in Rstudio via the package ‘MASS’ under the name ‘birthwt’.
+
+### Background research
+
+The purpose of this statistical report is to bring light to what particular risk factors help predict infant birth weight. As shown below are ranges of expected birth weights of babies, provided by University of Michigan. These ranges can be potential indicators to further understand results which show correlation between risk factors and babies born with weights outside of the expected range, suggesting a potential negative external influence on birth weight.
+
+The average birth weight for babies is around 7.5 lb (3.5 kg), although between 5.5 lb (2.5 kg) and 10 lb (4.5 kg) is considered normal. In general:
+
+- Boys are usually a little heavier than girls.
+- First babies are usually lighter than later siblings.
+- Large parents generally have large babies, while small parents generally have small babies.”
+
+According to Victorian Government organization Better Health, on average the mother’s who smoked during pregnancy were on average delivering babies weighing 150 to 200 grams less than normal. Through our multiple regression models we would like to find out if smoking is in fact a predicting factor for birth weight of babies, in particular does it have a negative coefficient. 
+
+### Data discovery
+
+The variables in the dataset which we will be testing against birth weight of the child are:
+
+- Numerical variables:
+    - mother’s age (age)
+    - mother’s weight (lwt)
+    - number of premature labors (ptl)
+    - number of physician visits (ftv)
+    - birth weight of the child (bwt)
+- Categorical variables:
+    - low (birth weight below or above 2.5kg)
+    - race of mother (race)
+    - whether mother smokes (smoke)
+    - mother’s hypertension history (ht)
+    - mother’s presence of uterine irretability (ui)
+    
+### Pre Analysis Observations
+
+Mean birth weight of babies (bwt) is approximately 2.9kg, which is 600 grams below the expected mean of 3.5kg. This is within the normal range of weights of 2.5kg - 4.5kg.
+
+Mother’s weight had a mean of 58.8 kg compared to the expected mean of 74.3 kg in 1999–2000. This may be an influencing factor for the lower range of birth weights of the babies.
+
+### Questions
+
+1. If smoking is in fact a predicting factor for birth weight of babies, in particular does it have a negative coefficient.
+2. Does mother’s birth weight in the last menstrual period predict baby birth weight?
+3. What are all the significant predicting factors of baby birth weight?
+
+### Data Analysis & Model Generate
+
+With the data without ‘low’ variable, we first performed a stepwise variable selection from the full model. With the dataset, we perform a F-test every time to remove the least informative variable, using the AIC value of each model and F test result.
+
+
+\begin{figure}[!htb]
+\includegraphics[width=0.5\textwidth]{pic_2}
+\caption{Stepwise Backward selection for data without low}\label{fig_1}
+\end{figure}
+
+As it shown above, variable ‘ftv’(physical visit number) is removed , followed by ‘age’(mother’s age), and then ‘ptl’(number of previous premature labors) in the end.
+
+A forward selection as well as an exhaust search is performed to compare with the first one.
+
+All of these selections give us the same 4 predictors (races are counted as one predictor).
+
+
+By making a simple comparison with the models, and surprisingly both selections provided us with exactly the same model. Hence, this is the model we selected for this dataset.
+
+In the end, after we obtain our model from forward/backward selection, a 10-fold cross validation with roughly 18 samples each fold is performed to see the strength of the selected model. Detail of the model validation is shown in the figure below.
+
+
+```{r include=FALSE,eval==FALSE, fig.width=1, fig.height=1}
+library(knitr)
+cv_without_low$results %>% xtable()
+```
+
+
+
+\begin{table}[!htb]
+\centering
+\begin{tabular}{rlrrrrrr}
+  \hline
+ & intercept & RMSE & Rsquared & MAE  \\ 
+  \hline
+1 & TRUE & 646.66 & 0.28 & 527.01  \\ 
+   \hline
+\end{tabular}\caption{Output performance check-10 Fold validation}\label{table_c}
+\end{table}
+
+## Analysis
+
+When we look into our dataset, we find that the predictor `low`, which indicates whether the birth weight is less than 2.5 kg and dependent variable `bwt`, the birth weight in grams, are likely to be measured in the same way, hence we exclude the `low` variable before building up our model.
+
+First, we conduct preliminary assumption checking. In p1, the general correlation between each predictor and birthweight does not show obvious linear or non-linear pattern, which requires further investigation.
+
+Second, we find approximately a straight line on the residual plot p2. Points are randomly distributed above and below across the line. So it satisfies the linearity assumption. We also find that the spread on the residual plot looks reasonably constant over the range, which indicates that it satisfies the homoscedasticity assumption.
+
+Third, on the QQ plot p3, despite several departure in the upper and lower tail, the majority of the points lie quite close to the diagonal line. So normality is satisfied. In addition, since we have a fairly large sample size, we can rely on central limit theorem. 
+
+Because we don’t see any violation of independence but we don’t know exactly how the experiment was designed. Based on the current information we know, we assume it satisfies the assumption of independence between the errors. 
+
+We build up our first multiple regression model. To begin with, we performed a stepwise backward variable selection starting from the full model, where we remove the least informative variable step by step and conclude the final model f1 at the end.
+The forward and backward AIC as well as an exhaust search are also performed and they all lead to the model with the same 5 predictors as before.
+After building up the model, we perform the assumption re-check on it. On p4, we still find relatively a straight line on the residual plot and points are randomly distributed above and below all over the line. So the linearity is satisfied. The independence, homoscedasticity, normality assumptions also hold for the same reasons mentioned above. We find that GVIF for all predictors are smaller than 5, so it satisfies no multicollinearity assumption.
+
+We do not include the interaction between our predictors in the current model and by conducting several trials, we find that the interaction between `lwt` and `ht` might be useful to predict the birth weight. Hence we include the interaction and build up our second model f2 using AIC forward and backward methods that give us the same result.
+Following the same procedure of assumption checking before f5, we conclude that the second model satisfied all assumptions.
+
+
+## Results
+
+
+Finally, we get two models Equation\ref{eqn:model_1} and Equation\ref{eqn:model_2} at our disposal:
+
+```{r results='asis', include = FALSE}
+library(equatiomatic)
+equatiomatic::extract_eq(step.fwd.aic, intercept = "beta",use_coefs = TRUE)
+model_2_lm = lm(bwt~ui+race+smoke+ht+lwt+lwt*ht, data = data_without_low)
+equatiomatic::extract_eq(model_2_lm, intercept = "beta",use_coefs = TRUE)
+```
+
+\begin{equation}
+\begin{split}
+\operatorname{bwt_1} &= 2362.21 - 525.52(\operatorname{ui}_{\operatorname{yes}}) + 126.91(\operatorname{race}_{\operatorname{other}}) \\&+ 475.06(\operatorname{race}_{\operatorname{white}}) -  356.32(\operatorname{smoke}_{\operatorname{yes}}) \\&- 585.19(\operatorname{ht}_{\operatorname{yes}}) + 
+4.24(\operatorname{lwt}) +\epsilon
+\end{split}
+\label{eqn:model_1}
+\end{equation}
+
+\begin{equation}
+\begin{split}
+\operatorname{bwt_2} &= 2509.39 - 536.56(\operatorname{ui}_{\operatorname{yes}}) + 140.13(\operatorname{race}_{\operatorname{other}}) \\&+ 489.75(\operatorname{race}_{\operatorname{white}}) - 379.65(\operatorname{smoke}_{\operatorname{yes}}) \\&
+- 1791.37(\operatorname{ht}_{\operatorname{yes}}) 
++ 3.08(\operatorname{lwt}) \\&
++ 7.88(\operatorname{ht}_{\operatorname{yes}} \times \operatorname{lwt}) + \epsilon
+\end{split}
+\label{eqn:model_2}
+\end{equation}
+
+As Allison (1977)\ref{Allison} suggested, if two variables were measured on a "numerical scale", it is quite common to test the "presence of interaction" through the product of these two variables. The difference of our two models above exactly derives from the inclusion of interaction between **lwt** and **ht**, which is actually one of our most important findings when conducting the research. 
+
+With regard to questions aforementioned, we found that both smoke (**smoke**) and mother's weight at last menstrual period (**lwt**) indeed exist in our two models, while the former imposes a negative effect on a baby's weight and the other way around for the latter. This is quite reasonable especially when we refer to some seminal research (??reference).
+
+\begin{table}[!htb]
+\centering
+\begin{tabular}{rlrrrrrr}
+  \hline
+  & RMSE & Rsquared & MAE  \\ 
+  \hline
+bwt1  & 657.29 & 0.21 & 534.17   \\ 
+   \hline
+bwt2  & 644.94 & 0.22 & 528.31   \\ 
+   \hline
+\end{tabular}
+\caption{bwt1 and bwt2}\label{tab_2}
+\end{table}
+
+
+```{r include = FALSE}
+library(xtable)
+xtable(cv_without_low$results, caption = "bwt1")
+
+cv_interaction = train(
+  bwt ~ lwt + race + smoke + ht+ ui+ht*lwt, data_without_low,
+  method = "lm",
+  trControl = trainControl(
+    method = "cv", number = 10,
+    verboseIter = FALSE
+  )
+)
+
+xtable(cv_interaction$results, caption = "bwt2")
+
+```
+
+
+
+Table\ref{tab_2} presents the result of out of sample performance test. Table\ref{tab_1} reports results of multiple regression and in sample performance test of these two models. 
+
+## Discussion
+
+Firstly, the sightly higher overall **adjusted** $R^2$ from Table\ref{tab_1} implies that with a brand-new variable (**interaction** between **ht** and **lwt**) added, the ability to explain more variation from the variables may seemingly get improved although with a tiny increase. 
+
+Also, the interaction is significant at 90%, the same level as lwt itself which was kept by three model selection methods that we utilized before (Stepwise, AIC backward & forward). Since lwt has been included in the model, there is no decent reason to drop the interaction between **lwt** and **ht**.
+
+Lastly, similar to in sample performance test, out of sample performance test also favors the model with interaction involved due to the lower **RMSE** and **MAE**.
+
+## Conclusion
+
+The low $R^2$ in both models significantly indicates that either of the model we constructed before can pleasantly explain much variation brought by these models. We can definitely, however, choose a relatively good model, **bwt2** Equation\ref{bwt2}, based on the discussion above and results shown in the tables.
+
+Nonetheless, we have to admit that there does exist some unavoidable limits even with the interaction effect considered.
+
+- In Allison's seminal work (1977), we should notice that the **high-order interactions** (such as the product of three independent variables) should not be neglected and **a hierarchical testing for interaction in multiple regression* should be rigorously followed, both of which imply that our interaction test stopping at ht and lwt is far away from being perfectly finished. 
+
+- Product of variables is definitely not the only way to carry out the interaction test due to the fact that there are some other interaction models available in Allison's research. 
+
+- Of all 189 observations, there seems a bias during the sampling period when we found some extremely big difference in each group. Such bias may be one of the main reasons why we are exposed to these feeble models.  
+
+# References
+
+Allison, Paul D. “Testing for Interaction in Multiple Regression.”  \hangindent=2em *American Journal of Sociology* 83.1 (1977): 144–153.\label{Allison}
+
+# Appendix
+
+\begin{table}[!htb]
+\begin{center}
+\includegraphics[width=0.5\textwidth]{pic_3}
+\end{center}
+\caption{AIC backward and forward}\label{tab_b}
+\end{table}
+
+```{r results='asis', echo=FALSE, warning=FALSE, message=FALSE, include = FALSE}
+t = lm(bwt~ui+race+smoke+ht+lwt+lwt*ht, data = data_without_low)
+# library(xtable)
+# 
+# # include R^2: 
+# library(MuMIn)
+# R2 <- function(x) summary(x)$r.squared
+# ms <- model.sel(t,step.back.aic, extra = "R2")
+# 
+# i <- 1:2 # indices of columns with model terms
+# response <- "a"
+# 
+# res <- as.data.frame(ms)
+# v <- names(ms)[i]
+# v[v == "(Intercept)"] <- 1
+# 
+# # create formula-like model names:
+# mnames <- apply(res[, i], 1, function(x) 
+#      deparse(simplify.formula(reformulate(v[!is.na(x)], response = response))))
+# ## OR
+# #   mnames <- apply(res[, i], 1, function(x)
+# #          sapply(attr(ms, "modelList"), function(x) deparse(formula(x)))
+# 
+# res <- cbind(model = mnames, res[, -i])
+# Hmisc::latex(res, file = "")
+# 
+# 
+
+# sjPlot::tab_model(
+#   t,
+#   show.ci = FALSE,
+#   show.aic = TRUE,
+#   dv.labels = c("Without low variable")
+# )
+
+#t %>% xtable(include.AICc = TRUE, print.table = TRUE)
+library(stargazer)
+stargazer(step.back.aic,t, type = "latex", font.size = "tiny", column.labels = c("bwt1", "bwt2"), title = "Regression results") 
+```
+
+
+\begin{table}[!htbp] \centering 
+  \caption{Regression results} 
+  \label{} 
+\tiny 
+\begin{tabular}{@{\extracolsep{5pt}}lcc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{2}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-3} 
+\\[-1.8ex] & \multicolumn{2}{c}{bwt} \\ 
+ & bwt1 & bwt2 \\ 
+\\[-1.8ex] & (1) & (2)\\ 
+\hline \\[-1.8ex] 
+ lwt & 4.242$^{**}$ & 3.080$^{*}$ \\ 
+  & (1.675) & (1.794) \\ 
+  & & \\ 
+ htyes:lwt &  & 7.880$^{*}$ \\ 
+  &  & (4.513) \\ 
+  & & \\ 
+ raceother & 126.907 & 140.128 \\ 
+  & (157.594) & (156.897) \\ 
+  & & \\ 
+ racewhite & 475.058$^{***}$ & 489.749$^{***}$ \\ 
+  & (145.603) & (145.034) \\ 
+  & & \\ 
+ smokeyes & $-$356.321$^{***}$ & $-$379.650$^{***}$ \\ 
+  & (103.444) & (103.730) \\ 
+  & & \\ 
+ htyes & $-$585.193$^{***}$ & $-$1,791.370$^{**}$ \\ 
+  & (199.644) & (718.757) \\ 
+  & & \\ 
+ uiyes & $-$525.524$^{***}$ & $-$536.557$^{***}$ \\ 
+  & (134.675) & (134.073) \\ 
+  & & \\ 
+ Constant & 2,362.206$^{***}$ & 2,509.395$^{***}$ \\ 
+  & (281.621) & (292.461) \\ 
+  & & \\ 
+\hline \\[-1.8ex] 
+Observations & 189 & 189 \\ 
+R$^{2}$ & 0.240 & 0.253 \\ 
+Adjusted R$^{2}$ & 0.215 & 0.224 \\ 
+Residual Std. Error & 645.940 (df = 182) & 642.335 (df = 181) \\ 
+F Statistic & 9.600$^{***}$ (df = 6; 182) & 8.756$^{***}$ (df = 7; 181) \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{2}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\label{tab_1}
+\end{tabular} 
+\end{table} 
+
