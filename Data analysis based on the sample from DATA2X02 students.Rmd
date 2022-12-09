@@ -1,0 +1,906 @@
+---
+title: "Data analysis based on the sample from DATA2X02 students"
+author: "Mingze Gong (SID:490284045)"
+date: "23/09/2020"
+output:
+  bookdown::html_document2: 
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+    code_folding: hide
+    number_sections: true
+    theme: paper
+    highlight: kate
+    css: style.css
+bibliography: ["packages.bib"]
+biblio-style: apalike
+link-citations: true
+nocite: "@*"
+---
+# Executive Summary
+
+By launching a survey including a series of questions on ed, we obtain the data from our a sample of DATA2X02 students enrolled in Semester2, 2020. 
+
+To begin with, we describe our sample and our target population See(\@ref(describe)).
+
+We believe this is a **random sample** of DATA2X02 students before discussing more about the embedded biases of this dataset (See \@ref(random)).
+
+Also, the principle, **Rubbish in-Rubbish out**, holds true especially in a survey expecting for some useful data from the sample. Therefore, we took a careful look at the questions for interviewees and brought some suggestions up (See \@ref(sug)) . 
+
+
+Then, after examining whether the time of testing for covid-test follows a **Poisson distribution** (See \@ref(poi)), we conducted a test for independence in a contingency table and two other tests including a test for **Independence** (See \@ref(floss)) as well as a **One sample t-test** (See \@ref(osp)). 
+
+Lastly, we use column *paid work*, *hender*, *stress level* to prove that **Simpsons paradox** does exist (See \@ref(simp)). 
+
+# Findings
+
+1. Although it is a random sample of DATA2X02 students, we believe some potential biases such as **non-response bias** and **measurement bias** do exist wheras **selection biases** is really not our concern in this case.
+
+2. As for the questions for interviewees, we do think that choices could be provided for some questions that normally are not quite subjective in terms of answers to them.
+
+3. Gievn that **p-value** (See \@ref(poi)) is too small, we reject our null hypothesis $H_0$ but favor $H_1$ which is the number of COVID tests does not come from a Poisson distribution.
+
+4. Due to the slightly larger p-value compared to $\alpha = 0.05$, we do not reject the null hypothesis. So we believe there is not sufficiently enought evidence suggesting that floss frequency is related to the gender of DATA2X02 classmates.
+
+5. After choosing $\mu_0 = 5.1$ which comes from a report of [**American Psychological Association**](https://www.apa.org/about) in 2015 in terms of adults' stress level, the p-value from the t-test is too small even less than $\alpha$. We then reject $H_0$ and accept $H_1$ which implies that DATA2X02 students' stress level is not equal to 5.1.
+
+6. The relationship between two variables can be broken up and even reversed when introducing a third variable.
+
+# Introduction
+
+## Population description {#describe}
+
+The result of this survey is utilized to make inferences for students enrolled in DATA2X02 in Semester 2, 2020, which means that these people are our target population in this research. Then we initiated a questionnaire through Ed which is a forum where students and teaching staff can communicate with each other in terms of any sorts of relevant questions. Finally, based on data from students who finished the online questionnaire (our sample), we conduct further analysis using R language with the help of RStudio.
+
+## Part of equired questions (1-3) for this report
+
+### Is this a random sample of DATA2X02 students? {#random}
+
+I believe these 175 volunteers is a random sample of DATA2X02 students. According to Elfil and Negida (2017), basically there are two main methods of sampling, probability sampling methods and non-probability sampling methods. Simple random sampling, which is usually used by investigators who have access to the whole population, starts with a sampling frame, a list of all subjects in the target population. From the frame, researchers drew a random sample. Since the questionnaire was posted on ed forum which almost everyone would have to log into at least once a day, all enrolled students would have a chance to finish it. From people who had finished those questions, researchers have got the original sample in a relatively random way.
+
+### What are the potential biases? Which variables are most likely to be subjected to this bias?
+
+As Tarr (2020.a) states, there are three types of bias including selection bias, non-response bias and measurement bias that researchers need to pay close attention to when dealing with data from a survey. If potential biases do exist in this research, they could be non-response bias and measurement bias. This non-mandatory study follows a relatively random procedure and we target on DATA2X02 students which is absolutely related with our aim. However, one of the potential biases mentioned above, non-response bias, derives from the fact not all DATA 2X02 students would log into ed and, more importantly, actually receive a notification of this survey. Although all students, for some reasons, do know the research gets underway, we could not promise that they are in an appropriate state of answering those questions. For example, we found that someone answers nothing but still hands in his/her questionnaire. Many questions have been affected by such problem including gender and dominant hand questions. Also, someone may give their exact answers but not in a rational way. The questions in terms of eye color and the amount of time spent on university work are more or less affected. This is actually prevalent in our dataset so that we need to clean them and exclude these disturbances.As for measurement bias, we believe that the respondents worry whether all data are leaked or not and this concern might lead them to answer the questions in a way that they think is bearable even in public. For example, the question with regard to private hygiene or healthy state (How often do you floss your teeth and Do you have asthma) may induce such issue. 
+
+### Are there any questions that needed improvement to generate useful data? {#sug}
+
+We can make further improvements on mainly 2 sides. 
+
+1. Offering some question answers multiple choices such as shoe-size or eye-color. For some questions that are not too subjective, we could offer a few choices, which would contribute much help in later analysis because this will not only save much time for investigators to make data more uniform, but also imply interviewees that this questionnaire will not take long time to finish. In the end, we collect more responses but spend less time organizing them which gives way to interpreting the results. 
+
+2. Improving the internal connection among designed questions. The question about stress level was designed to, for example, study what triggers the stress. We believe that it may be related to study load both financially and mentally, which may urge them to get a part-time job that may unexpectedly impose much more pressure on themselves. However, both study load and workload are measured in terms of last semester’s whereas the stress level result comes from last week.  
+
+# Before analysis
+## Import the data
+
+```{r library, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(dplyr)
+library(tidyverse)
+library(janitor)
+library(skimr)
+library(visdat)
+library(gendercodeR)
+library(data.table)
+library(bookdown)
+library(kableExtra)
+library("ggplot2")
+```
+
+```{r cite packages}
+#knitr::write_bib(c("janitor","dplyr", "skimr", "visdat", "data.table", "bookdown", "kableExtra", "ggplot2"), "packages.bib")
+#citation("tidyverse")
+#citation("gendercodeR")
+```
+
+
+```{r raw}
+raw = readr::read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vTf8eDSN_2QbMTyVvO5bdYKZSEEF2bufDdYnLnL-TsR8LM-6x-xu1cxmDMohlbLrkMJn9DE7EG7pg5P/pub?gid=1724783278&single=true&output=csv")
+```
+
+## Clean coulumn names
+
+```{r, eval=FALSE}
+tibble(Position = 1:21, `Column names` = colnames(raw)) %>%
+gt::gt() %>% 
+gt::tab_source_note("Table 1: Questions asked in the DATA2002 survey.")
+```
+
+Here we have original questions in the questionnaire:
+
+```{r, echo=TRUE, eval=FALSE}
+tibble(Position = 1:21, `Column names` = colnames(raw)) %>%
+gt::gt() %>% 
+gt::tab_source_note("Table 1: Questions asked in the DATA2002 survey.")
+```
+
+<details>
+  <summary style="color:#CBCBCB">Click to have a look</summary>
+```{r, echo=FALSE, eval=TRUE}
+tibble(Position = 1:21, `Column names` = colnames(raw)) %>%
+gt::gt() %>% 
+gt::tab_source_note("Table 1: Questions asked in the DATA2002 survey.")
+```
+</details> 
+
+```{r writepackage, include=FALSE}
+knitr::write_bib(c("janitor", "visdat"), "packages2.bib")
+```
+
+Firstly, we use **janitor package** [@R-janitor] to make the column names look more concise.
+
+```{r Column names after janitor, echo=TRUE, eval=FALSE}
+x = raw %>% janitor::clean_names()
+tibble(Position = 1:21, `Column names` = colnames(x)) %>%
+gt::gt() %>% 
+gt::tab_source_note("Table 2: Column names after janitor.")
+```
+
+<details>
+  <summary style="color:#CBCBCB">Click to have a look</summary>
+```{r echo=FALSE, eval=TRUE}
+x = raw %>% janitor::clean_names()
+tibble(Position = 1:21, `Column names` = colnames(x)) %>%
+gt::gt() %>% 
+gt::tab_source_note("Table 2: Column names after janitor.")
+```
+</details> 
+However, the prefixes of names above such as *what_is_your* or *did_you* or *how_many* still look so redundant. We then remove such things by ```stringr::str_replace()```. At the same time, we manually shorten some names.
+```{r, mannualy input names}
+colnames(x) = stringr::str_replace(string = colnames(x),
+                                   pattern = "what_is_your_",
+                                   replacement = "")
+colnames(x) = stringr::str_replace(string = colnames(x),
+                                   pattern = "on_average_how_many_hours_per_week_did_you_",
+                                   replacement = "")
+colnames(x)[2] = "covid_test"
+colnames(x)[4] = "postcode"
+colnames(x)[5] = "dentist"
+colnames(x)[6] = "university_work"
+colnames(x)[7] = "social_media"
+colnames(x)[8] = "dog_or_cat"
+colnames(x)[9] = "live_with_parents"
+colnames(x)[10] = "exercising"
+colnames(x)[12] = "asthma"
+colnames(x)[13] = "paid_work"
+colnames(x)[14] = "fav_season"
+colnames(x)[16] = "height"
+colnames(x)[17] = "floss_frequency"
+colnames(x)[18] = "glasses"
+colnames(x)[20] = "steak_preference"
+colnames(x)[21] = "stress_level"
+```
+Then we have basically finished renaming the column names. 
+
+```{r Final colunm names, echo=TRUE, eval=FALSE}
+tibble(Position = 1:21, `Variable name` = colnames(x), `Corresponding question` = colnames(raw)) %>%
+  gt::gt() %>% 
+  gt::tab_source_note("Table 3: Variable names and the corresponding questions asked in the DATA2002 survey.")
+```
+<details>
+  <summary style="color:#CBCBCB">Click to have a look</summary>
+```{r, echo=FALSE, eval=TRUE}
+tibble(Position = 1:21, `Variable name` = colnames(x), `Corresponding question` = colnames(raw)) %>%
+  gt::gt() %>% 
+  gt::tab_source_note("Table 3: Variable names and the corresponding questions asked in the DATA2002 survey.")
+```
+</details>
+## Totally missing Values {#missing}
+We can visualize the completeness of the data in **visdat package** [@visdat2017]. As is shown in Figure \@ref(fig:Missing-values), many values are lost due to the fact that someone answered nothing but still submitted. We had better remove some completely empty rows in the dataset.   
+```{r Missing-values, fig.cap="Visualising the completeness of the data."}
+visdat::vis_miss(x)
+x_withoutcpna = x %>% drop_na(covid_test)
+```
+Although, there are still many missing values as was shown in Figure \@ref(fig:Missing-values-now), removing all the rows including *NA* will unavoidably make us lose some useful values that these students filled in before.**Therefore, we would not delete them all at a time. Instead, when conducting some relevant tests, we would decide if there is *NA* disturbance and whether the data in hand is answered in a rational way.** For now, we remove the data submitted by students who actually did not answer anything.  
+```{r Missing-values-now, fig.cap="Visualising the completeness of the data after initial removing"}
+visdat::vis_miss(x_withoutcpna)
+```
+
+# Data analysis
+
+## Does the number of COVID tests follow a Poisson distribution? (Question4) {#poi} 
+
+Since we have used ```x %>% drop_na(covid_test)``` to filter our dataset (removing totally empty values), now **column covid_test** is clean enough. But we have to examine whether there exists some abnormal values.
+
+```{r}
+tabyl(x_withoutcpna$covid_test) %>% gt::gt()
+```
+
+Since we cannot see any abnormality, we can continue our test. According to Tarr(2020.b), we have some steps as follows.
+
+1. Some **hypotheses** are needed. Our $H_0$ is that we believe the data come from a **Poisson distribution**. $H_1$ is just the opposite which is that the data do not come from a **Poisson distribution**.
+
+Before further steps, we had used ```rpois()``` to plot what pseudo-random data from a Poisson distribution but with a lambda in this scenario(covid-test) will look like. See Figure \@ref(fig:cov-0)
+
+```{r cov-0, fig.cap="Poisson distribution with lambda of this scenario"}
+frequceny_covidtest  = as.data.frame(tabyl(x_withoutcpna$covid_test))
+y_poisson = c(frequceny_covidtest$n) # input the observed counts
+x_group = c(frequceny_covidtest$`x_withoutcpna$covid_test`) # define the corresponding groups
+n = sum(y_poisson) # total number of samples (sample size)
+k = length(y_poisson) # number of groups
+lam = sum(y_poisson * x_group)/n # estimate the lambda parameter
+plot(table(rpois(n=10000, lambda = lam)), ylab = "Count")
+```
+
+2. We require **assumptions** which are respectively that the expected frequencies, $e_i=np_i\geq5$ and observations are independent. But we can see from Table \@ref(tab:cov-1) that not all assumptions get satisfied.
+
+```{r cov-1}
+p_poisson = dpois(x_group, lambda = lam) # obtain the p_i from the Poisson pmf
+p_poisson[8] = 1- sum(p_poisson[1:7])
+p_poisson=round(p_poisson, 5)
+ey_poisson = n * p_poisson
+#ey_poisson >= 5  #check assumption e_i >= 5 not all satisfied
+zzz = table(ey_poisson >= 5) 
+zzz = zzz  %>% as.data.frame() 
+`colnames<-`(zzz, c("All values >= 5", "Frequencies")) %>% 
+  knitr::kable(caption = "The expected frequencies.", align=rep('c', 5),format = "html", table.attr = "style='width:50%;'") %>% 
+  kableExtra::kable_styling()
+```
+So we combine adjacent classes to satisfy assumptions. We now get **3** groups in hand. See Table \@ref(tab:cov-2)
+
+```{r cov-2}
+# combine adjacent classes to satisfy assumptions
+y_poissonr = c(y_poisson[1:2],sum(y_poisson[3:8]))
+ey_poissonr = c(ey_poisson[1:2], sum(ey_poisson[3:8]))
+p_poissonr = c(p_poisson[1:2], sum(p_poisson[3:8]))
+kr = length(y_poissonr) # number of combined classes
+zzz_yp = table(y_poissonr) 
+zzz_yp = zzz_yp  %>% as.data.frame() 
+`colnames<-`(zzz_yp, c("y_poissonr", "Freq")) %>% 
+  knitr::kable(caption = "Three groups in hand.", align=rep('c', 5),format = "html", table.attr = "style='width:50%;'") %>% 
+  kableExtra::kable_styling()
+```
+
+3. According to $T = \sum\limits_{i=1}^K\frac{(Y_i-np_i)^2}{np_i}$. Under **$H_0$**, $T\sim\chi_{2}^2$ approximately.
+
+4. We get the **observed test statistic** $t_0=19.64359$. 
+
+5. Also, through ```pval = 1 - pchisq(t0, df = kr - 1 - 1)``` the corresponding p-value is $P(T \geq t_0) = P(\chi_2^2 \geq 19.64359) = 9.331577\times10^{-6}$ Here, as was shown in Figure \@ref(fig:cov-3) we plot the observed frequency and expected frequency to visualize the difference.
+
+```{r cov-3, fig.cap="The ovserved and expected frequency"}
+t0 = sum((y_poissonr - ey_poissonr)^2/ey_poissonr) # test statistic
+pval = 1 - pchisq(t0, df = kr - 1 - 1) # p-value```
+grouplabels = c("0", "1", ">=2") # group labels
+par(mfrow = c(1, 2), cex = 1.5) # plot options
+barplot(y_poissonr, names.arg = grouplabels, main = "Observed frequency")
+barplot(ey_poissonr, names.arg = grouplabels, main = "Expected frequency")
+```
+
+**Therefore, since the p-value is far less than 0.05, there is significant evidence that suggests we reject the null hypothesis and this means the number of COVID tests *does not* follow a Poisson distribution**. Also, Figure \@ref(fig:cov-4) illustrates that it is impossible to plot the range of where $P(X\geq19.64359)=9.331577\times10^{-6}$ is even though we had actually plotted them using ```polygon(c(x_vector, rev(x_vector)), c(p_vector, rep(0, length(p_vector))), col = adjustcolor('red', alpha=0.3), border = NA)```
+
+```{r cov-4, fig.cap="Probability density function"}
+#create density curve
+curve(dchisq(x, df = 1), from = 0, to = 30,
+main = 'Chi-Square Distribution (df = 1)',
+ylab = 'Density',
+lwd = 2)
+
+#create vector of x values
+x_vector <- seq(19.64359, 30)
+
+#create vector of chi-square density values
+p_vector <- dchisq(x_vector, df = 1)
+
+#fill in portion of the density plot from 0 to 30
+polygon(c(x_vector, rev(x_vector)), c(p_vector, rep(0, length(p_vector))),
+        col = adjustcolor('red', alpha=0.3), border = NA)
+```
+
+
+## Is there any evidence that being a woman increased your frequency of flossing? (Question5.1-My test for independance) {#floss}
+
+We would like to know if there is enough evidence showing that being a woman increases your floss frequency. Since we did not want to know anything more than this, the entries in both columns seem redundant. For gender column, obviously we have distinct entries. As for another one, we plan to rearrange it into *At least once a week* and *Less than once a week* because we are concerned more with whether they floss teeth rather than how often they do that. 
+
+Like in \@ref(missing), since some empty values still exist, in order to promise the relative accuracy of this homogeneity test, the first step of our tests will always start with cleaning the data, which are _gender column_  and _floss frequency column_ in this case.
+
+### Remove NAs in gender column and floss frequency column {#pre}
+
+Let's remove *NA* in both columns with the help of ```drop_na```.
+
+```{r g-fd, echo = TRUE, message = FALSE, eval=FALSE}
+gender_flossing = tibble(x_withoutcpna$gender, x_withoutcpna$floss_frequency)
+gender_flossing = gender_flossing %>% drop_na(`x_withoutcpna$gender`)
+gender_flossing = gender_flossing %>% drop_na(`x_withoutcpna$floss_frequency`)
+gender_flossing = gender_flossing %>% as.data.frame() %>% `names<-`(c("gender", "floss frequency"))
+visdat::vis_dat(gender_flossing)
+```
+<details>
+  <summary style="color:#CBCBCB">Click to have a look</summary>
+```{r, echo=FALSE, eval=TRUE}
+gender_flossing = tibble(x_withoutcpna$gender, x_withoutcpna$floss_frequency)
+gender_flossing = gender_flossing %>% drop_na(`x_withoutcpna$gender`)
+gender_flossing = gender_flossing %>% drop_na(`x_withoutcpna$floss_frequency`)
+gender_flossing = gender_flossing %>% as.data.frame() %>% `names<-`(c("gender", "floss frequency"))
+visdat::vis_dat(gender_flossing)
+```
+</details>
+
+Also, to see if there were some abnormalities, we use `tabyl` to have a look at the distribution. See \@ref(poi). Everything is on the track so that we hide the result here. 
+```{r, results="hide"}
+tabyl(gender_flossing$gender)
+tabyl(gender_flossing$`floss frequency`)
+```
+
+
+### Change variables into more uniform form.
+
+#### _Gender_ {#here}
+
+For this column, we have different entries. Now with the help of ```toupper(gender)``` and ```case_when```, we change them into _Female_, _Male_, _Non-binary_ as below.
+
+```{r, gs-gender, echo=TRUE, eval=FALSE}
+gender_flossing = gender_flossing %>% mutate(
+    gender = toupper(gender),
+  gender = stringr::str_sub(gender, start = 1, end = 1),
+  gender = case_when(
+    gender == "F" ~ "Female",
+    gender == "M" ~ "Male",
+    gender == "N" ~ "Non-binary"
+  )
+)
+```
+
+<details>
+  <summary style="color:#CBCBCB">Click to have a look</summary>
+```{r, echo=FALSE, eval=TRUE}
+gender_flossing = gender_flossing %>% mutate(
+    gender = toupper(gender),
+  gender = stringr::str_sub(gender, start = 1, end = 1),
+  gender = case_when(
+    gender == "F" ~ "Female",
+    gender == "M" ~ "Male",
+    gender == "N" ~ "Non-binary"
+  )
+)
+gender_flossing%>%
+gt::gt()
+```
+</details> 
+
+#### _Floss frequency_
+
+As for this column, see Table \@ref(tab:gf-f) we have already had uniform answers in hand.
+```{r gf-f}
+janitor::tabyl(gender_flossing$`floss frequency`) %>% `names<-`(c("Floss frequency", "n", "percent")) %>%    knitr::kable(caption = "Floss freqncy column before renaming", align=rep('c', 5),format = "html", table.attr = "style='width:50%;'") %>% 
+  kableExtra::kable_styling()
+```
+
+But as we have said in \@ref(floss), we have to rearrange them into another concise form. Now the two columns are like below.
+
+```{r gs-floss, echo=TRUE, eval=FALSE}
+gender_flossing = gender_flossing %>% mutate(
+  `floss frequency` = toupper(`floss frequency`),
+  `floss frequency` = stringr::str_sub(`floss frequency`, start = 1, end = 3),
+  `floss frequency`  = case_when(
+    `floss frequency`  == "WEE" ~ "At least once a week",
+    `floss frequency`  == "EVE" ~ "At least once a week",
+    `floss frequency` == "MOS" ~ "At least once a week",
+    `floss frequency`  == "LES" ~ "Less than once a week"
+  )
+)
+gender_flossing %>% gt::gt()
+```
+
+<details>
+  <summary style="color:#CBCBCB">Click to have a look</summary>
+```{r, echo=FALSE, eval=TRUE}
+gender_flossing = gender_flossing %>% mutate(
+  `floss frequency` = toupper(`floss frequency`),
+  `floss frequency` = stringr::str_sub(`floss frequency`, start = 1, end = 3),
+  `floss frequency`  = case_when(
+    `floss frequency`  == "WEE" ~ "At least once a week",
+    `floss frequency`  == "EVE" ~ "At least once a week",
+    `floss frequency` == "MOS" ~ "At least once a week",
+    `floss frequency`  == "LES" ~ "Less than once a week"
+  )
+)
+gender_flossing %>% gt::gt()
+```
+</details> 
+
+### Testing for independance in 3X2 tables {#tfi} 
+
+Similarly, just like what we have done to **poisson distribution test** in \@ref(poi), we need follow few steps and make some assumptions.In this case:
+
+1. **Hypothesis**: $H_0: p_{ij} = p_{i\bullet}p_{\bullet j}, i = 1, 2, 3; j = 1, 2$ vs $H_1:$ Not all equality hold.
+
+2. **Assumption**: $e_{ij} = y_{i\bullet} \cdot y_{j\bullet} \geq 5$. But we found not all of them hold true. (See Table \@(tab:gf-e))
+
+```{r, gf-e}
+#Testing for homogeneity in 3X2 tables
+tab_gender_flossing = table(gender_flossing)
+n_gf = sum(tab_gender_flossing)
+r_gf =3
+c_gf = 2
+row_totals_gf = apply(tab_gender_flossing, 1, sum) # rowSums(tab)
+col_totals_gf = apply(tab_gender_flossing, 2, sum) # colSums(tab)
+rt_gf = matrix(row_totals_gf, nrow = r_gf,
+ncol = c_gf, byrow = FALSE)
+ct_gf = matrix(col_totals_gf, nrow = r_gf,
+ncol = c_gf, byrow = TRUE)
+etab = rt_gf * ct_gf / n_gf
+bbb = etab >= 5 # check Eij>=5
+bbb %>% as.data.frame() %>% `names<-`(c("At least once a week", "Less than once a week")) %>% `row.names<-`(c("Female","Male","Non-binary")) %>%  knitr::kable(caption = "The expected frequencies", align=rep('c', 5),format = "html", table.attr = "style='width:50%;'") %>% 
+  kableExtra::kable_styling()
+```
+
+Therefore, we combine the last two classes.The revised table is:
+```{r}
+v = tab_gender_flossing %>% matrix(nrow = 3, ncol = 2)
+v1=v[1,]
+v2 = v[3,]+v[2,] 
+new_tgf = rbind(v1,v2) %>% as.data.frame() %>%  `names<-`(c("At least once a week", "Less than once a week")) %>% `rownames<-`(c("Female", "Male"))
+new_tgf %>% knitr::kable(caption = "The revised table", align=rep('c', 5),format = "html", table.attr = "style='width:50%;'") %>% 
+  kableExtra::kable_styling()
+```
+
+3. **Test statistic**: $T=\sum\limits_{i=1}^2\sum\limits_{j=1}^2\frac{(Y_{ij}-e_{ij})^2}{e_{ij}}$. Under $H_0$, $T \sim \chi_{1}^2$
+
+With new table, using ```t0 = sum((new_tgf - new_etab)^2/new_etab)``` and ```p.value = 1 - pchisq(t0, 1)```, we get $T_0 = 2.630727$, $p-value = 0.1048137$ which are also consistent with the results of built-in function ```chisq.test()```.
+
+4. **Observed test statistic**: $t_0=2.630727$
+
+5. **P-value**: $P(T\geq t_0)=P(\chi^2 \geq2.630727)=0.1048137$
+Therefore, since the p-value is greater than 0.05, we do not reject the null hypothesis so that there is not sufficiently strong evidence suggesting that floss frequency is related to the gender of DATA2X02 classmates. 
+
+```{r results="hide"}
+new_n_gf = sum(new_tgf)
+new_r_gf =2
+new_c_gf = 2
+new_row_totals_gf = apply(new_tgf, 1, sum) # rowSums(tab)
+new_col_totals_gf = apply(new_tgf, 2, sum) # colSums(tab)
+new_rt_gf = matrix(new_row_totals_gf, nrow = new_r_gf,
+ncol = new_c_gf, byrow = FALSE)
+new_ct_gf = matrix(new_col_totals_gf, nrow = new_r_gf,
+ncol = new_c_gf, byrow = TRUE)
+new_etab = new_rt_gf * new_ct_gf / new_n_gf
+
+t0 = sum((new_tgf - new_etab)^2/new_etab)
+p.value = 1 - pchisq(t0, 1)
+
+chisq.test(new_tgf, correct = FALSE)
+
+```
+The probability density function is as follows See Figure \@ref(fig:gf-curve).
+```{r gf-curve, fig.cap="Probability density function"}
+#create density curve
+curve(dchisq(x, df = 1), from = 0, to = 20,
+main = 'Chi-Square Distribution (df = 1)',
+ylab = 'Density',
+lwd = 1,
+)
+
+#create vector of x values
+x_vector <- seq(2.630727, 20)
+
+#create vector of chi-square density values
+p_vector <- dchisq(x_vector, df = 1)
+
+#fill in portion of the density plot from 0 to 30
+polygon(c(x_vector, rev(x_vector)), c(p_vector, rep(0, length(p_vector))),
+        col = adjustcolor('red', alpha=0.3), border = NA)                             
+abline(v = 2.630727, col = "red")
+```
+
+### Limitations for the test in this case {#pp}
+
+* Our sample size in hand is small and not representative enough. This issue is manifest to us in the poor amount of "Non-binary" values. Therefore, we have to combine it with the adjacent group (Female) to continue our test.
+
+* Even though we removed *NA* answers firstly, we still cannot make sure the rest of the answers are what the interviewees really thought. Because we did not offer an appropriate environment for them to treat this survey properly. Some data is ridiculous for example: 
+
+```{r}
+x_withoutcpna %>%  filter(university_work == 170) %>% gt::gt()
+```
+
+The table above shows all data are filled in by someone who, according to his answer, spent 170 hours per week on university work in semester 1. This is almost impossible. It is easier for us to notice that and also remove them when we are testing something with regard to this sort of data. However, simply examining his 'stress level' and 'gender', we could not exclude them, which again brings us a new problem ——no one can promise he is treating this survey seriously. We could never avoid the trap this sort of people set for us.
+
+
+
+## Is the mean stress level of this sample  less than 5.1 (on a 10-point scale) that American Psychological Association stated is the average stress level of adults in 2015? (Question5.2-My 'One Sample test') {#osp}
+
+According to a [**Stress Snapshot**](https://www.apa.org/news/press/releases/stress/2015/snapshot) summarized by [**American Psychological Association**](https://www.apa.org/about), based on a 10-level stress choice, adults chose 5.1 as their average rate of stress level. We are going to condut a '**One Sample Test**' to see whether students enrolled in DATA2X02 facing pressure coming from themselves and the uninvited guest, Covid-19, are suffering or not. 
+As what we have done in previous step, see \@ref(pre), we will firstly clean our data and exclude the *NA* values
+
+### Clean *NA* values
+
+Now all *NA* existing in stress level column has been removed from the dataset.
+
+```{r, echo=TRUE, eval=FALSE}
+
+stress_withoutna = x_withoutcpna$stress_level %>% tibble() %>%
+  drop_na() %>% c() %>% `names<-`("df_str")
+df_str = data.frame(stress_withoutna)
+df_str%>%
+  gt::gt() %>% 
+  gt::tab_source_note("Stress level with NA removed")
+```
+
+<details>
+  <summary style="color:#CBCBCB">Click to have a look</summary>
+```{r, echo=FALSE, eval=TRUE}
+stress_withoutna = x_withoutcpna$stress_level %>% tibble() %>%
+  drop_na() %>% c() %>% `names<-`("df_str")
+df_str = data.frame(stress_withoutna)
+df_str%>%
+  gt::gt() %>% 
+  gt::tab_source_note("Stress level with NA removed")
+```
+</details> 
+We could plot a **Box Plot** using `ggplot` and `geom_boxplot` and have a look at the overall distribution of the data. See Figure \@ref(fig:str-bp)
+```{r str-bp, fig.cap="The overall distribution of stress level"}
+set.seed(1)
+p1_str = ggplot(df_str, aes(x = "", y = df_str)) +
+  geom_boxplot(alpha = 0.5, coef = 10) +
+  geom_dotplot(binaxis = 'y',stackdir = 'center') +
+  geom_hline(yintercept = 5.1,
+             colour = "blue",
+             linetype = "dashed") +  
+  labs(y = "Stress Level", x = "") +
+  theme_bw(base_size = 24) +
+  theme(axis.ticks.x = element_blank(),
+        axis.text.x =element_blank())
+p1_str
+```
+
+### One sample $t$-test
+
+As we have done with 'Test for Independence' (see \@ref(tfi)), some hypothesises and assumptions are required.
+
+1. **Hypothesis**: $\mu=5.1$ vs $H_1:\mu\ne\mu_0$
+
+2. **Assumptions**: $X_i$ are **iid** rv (**Independent and identically distributed random variables**) and follow $N(\mu, \sigma^2)$
+
+Here we obtain the average rate of stress level by `mean()`.
+
+```{r}
+data_str = as.numeric(as.character(unlist(stress_withoutna[[1]]))) 
+average = data_str %>% mean()
+average
+```
+3. **Test statistic**: $T = \frac{\bar X - \mu_0}{S/\sqrt{n}}$. Under $H_0$, $T\sim t_{n-1}$.
+
+Thereby, $t_0$ is available which is **5.21652**. Then we could go further in our $t$-test
+```{r}
+n=data_str %>% length()
+t0 = (mean(data_str) - 5.1)/(sd(data_str)/sqrt(n))
+t0
+mean(data_str)
+sd(data_str)
+```
+
+4. **Observed test statistic**: $t0=\frac{6.082353 - 5.1}{2.455337\sqrt{170}} = 5.21652$
+
+5. **p-value**: $2P(t_{169}\geq |t_0|)$. Because we are conducting the 'Two-sided t-test', our p-value then is `(1- pt(t0, n - 1))*2`. Also, this result is consistent with `t.test(data_str, mu = 5.1, alternative = "two.sided")`.
+
+```{r}
+pval = (1- pt(t0, n - 1))*2
+pval
+```
+
+```{r, results = "hide"}
+t.test(data_str, mu = 5.1, alternative = "two.sided")
+```
+
+Since p-value is too small and, obviously less than $\alpha$ which equals 0.05 in this case, there is sufficiently enough evidence against $H_0$. 
+
+6. **Decision**: Therefore, we reject $H_0$ and favor $H_1$, which means that the stress-level of DATA2X02 students' is not equal to 5.1 on average. 
+
+### Limitations for the test in this case
+
+* For this one sample t-test, we do not have particular requirements for the sample size, but same problem still exists in terms of the reliability of our data in hand. See \@ref(pp)
+
+* Also, we found a $\mu_0$ which is **5.1** in this case from a report of [**APA**](https://www.apa.org/about)  in 2015.
+    + Firstly, the average rate of stress level is, more or less, a bit outdated. It is not particularly what we expect for the average rate of DATA2X02 students' stress level. But fortunately, in this test, we focus much on the overall situation of the stress level. Though 5.1 might not be an average rate we expect, it does not make much difference after all it is around half of ten.
+    
+    + Also, during the Covid-19, the overall stress of the public must be surging. Obviously, our $\mu_0$ still does not concern that impact. 
+
+## Simpsons paradox {#simp}
+
+AS Tarr mentioned in Lecture02 (2020.a), Simpsons Paradox was first mentioned by British statistician. It means that the association between two certain variables may reverse with entry of a thid variable. Under this category, we would visualize some charts and show the Simpons paradox of our edition if possible.  
+
+The first two variables that we choose are respectively gender and stress level. The third variable is the amount of time spent on paid work.
+
+### Remove *NAs* from our dataset:
+
+```{r}
+gender_stress = tibble(x_withoutcpna$gender, x_withoutcpna$stress_level, x_withoutcpna$paid_work)
+gender_stress = gender_stress %>% drop_na(`x_withoutcpna$gender`)
+gender_stress = gender_stress %>% drop_na(`x_withoutcpna$stress_level`)
+gender_stress = gender_stress %>% drop_na(`x_withoutcpna$paid_work`)
+gender_stress = gender_stress %>% as.data.frame() %>% `names<-`(c("gender", "stress_level ", "time_on_paid_work"))
+visdat::vis_dat(gender_stress)
+```
+
+### Remove abnormal value.
+
+#### Visualize the *gender* column
+
+
+```{r, echo=TRUE, eval=FALSE}
+tabyl(gender_stress$`gender`) %>% gt::gt()
+
+```
+
+<details>
+  <summary style="color:#CBCBCB">Click to have a look</summary>
+```{r, echo=FALSE, eval=TRUE}
+tabyl(gender_stress$`gender`) %>% gt::gt()
+```
+</details> 
+
+#### Visualize the *stress level* column
+
+```{r, echo=TRUE, eval=FALSE}
+tabyl(gender_stress$`stress_level `) %>% gt::gt()
+
+```
+
+<details>
+  <summary style="color:#CBCBCB">Click to have a look</summary>
+```{r, echo=FALSE, eval=TRUE}
+tabyl(gender_stress$`stress_level `) %>% gt::gt()
+```
+</details> 
+
+The first two columns are all seemingly normal other than the third one where we have someone spending **70** and **75 hours per week** on paid work, which seems impossible. Therefore, we would remove these two rows.
+
+#### Visualize the *time on paid work* column
+
+```{r, echo=TRUE, eval=FALSE}
+tabyl(gender_stress$`time_on_paid_work`) %>% gt::gt()
+
+```
+
+<details>
+  <summary style="color:#CBCBCB">Click to have a look</summary>
+```{r, echo=FALSE, eval=TRUE}
+tabyl(gender_stress$`time_on_paid_work`) %>% gt::gt()
+```
+</details> 
+
+Therefore, we have data as below in hand (Notice that we have changed the value under gender column as what we have done before See \@ref(here) ).
+
+
+```{r, echo=TRUE, eval=FALSE}
+gender_stress = filter(gender_stress, time_on_paid_work != 70)
+gender_stress = filter(gender_stress, time_on_paid_work != 75)
+
+gender_stress = gender_stress %>% mutate(
+    gender = toupper(gender),
+  gender = stringr::str_sub(gender, start = 1, end = 1),
+  gender = case_when(
+    gender == "F" ~ "Female",
+    gender == "M" ~ "Male",
+    gender == "N" ~ "Non-binary"
+  )
+)
+
+gender_stress %>% gt::gt()
+```
+
+<details>
+  <summary style="color:#CBCBCB">Click to have a look</summary>
+```{r, echo=FALSE, eval=TRUE}
+gender_stress = filter(gender_stress, time_on_paid_work != 70)
+gender_stress = filter(gender_stress, time_on_paid_work != 75)
+
+gender_stress = gender_stress %>% mutate(
+    gender = toupper(gender),
+  gender = stringr::str_sub(gender, start = 1, end = 1),
+  gender = case_when(
+    gender == "F" ~ "Female",
+    gender == "M" ~ "Male",
+    gender == "N" ~ "Non-binary"
+  )
+)
+
+gender_stress %>% gt::gt()
+```
+</details> 
+
+We have to redesign the hierarchy of  *Stress level* column in order to visualize the overall state of our sample. See below our new classification
+
+|  Stress underload | Optimum stress | Stress overload |
+|---|---|---|
+|  0-3 |  4-7<img width=200/> | 8-10 | 
+
+Then using `case_when`, we successfully changed its value. Before further analysis, we have data as below.
+
+```{r, echo=TRUE, eval=FALSE}
+tabyl(gender_stress$`time_on_paid_work`) %>% gt::gt()
+```
+
+<details>
+  <summary style="color:#CBCBCB">Click to have a look</summary>
+```{r, echo=FALSE, eval=TRUE}
+tabyl(gender_stress$`time_on_paid_work`)
+```
+</details> 
+
+
+#### Redesign the *Stress level* {#previously}
+Therefore, we have data as below in hand (Notice that we have changed the value under gender column as what we have done before See \@ref(here) ).
+
+
+```{r, echo=TRUE, eval=FALSE}
+gender_stress = gender_stress %>%  mutate(
+  `stress_level ` = case_when(
+  `stress_level `== 0 ~ "Stress underload",
+ `stress_level `== 1 ~ "Stress underload",
+  `stress_level `== 2 ~ "Stress underload",
+  `stress_level `== 3 ~ "Stress underload",
+  `stress_level `== 4 ~ "Optimum stress",
+  `stress_level `== 5 ~ "Optimum stress",
+  `stress_level `== 6 ~ "Optimum stress",
+  `stress_level `== 7 ~ "Optimum stress",
+  `stress_level `== 8 ~ "Stress overload",
+  `stress_level `== 9 ~ "Stress overload",
+  `stress_level `== 10 ~ "Stress overload"
+
+  ) 
+  
+)
+gender_stress %>% gt::gt()
+```
+
+<details>
+  <summary style="color:#CBCBCB">Click to have a look</summary>
+```{r, echo=FALSE, eval=TRUE}
+gender_stress = gender_stress %>%  mutate(
+  `stress_level ` = case_when(
+  `stress_level `== 0 ~ "Stress underload",
+ `stress_level `== 1 ~ "Stress underload",
+  `stress_level `== 2 ~ "Stress underload",
+  `stress_level `== 3 ~ "Stress underload",
+  `stress_level `== 4 ~ "Optimum stress",
+  `stress_level `== 5 ~ "Optimum stress",
+  `stress_level `== 6 ~ "Optimum stress",
+  `stress_level `== 7 ~ "Optimum stress",
+  `stress_level `== 8 ~ "Stress overload",
+  `stress_level `== 9 ~ "Stress overload",
+  `stress_level `== 10 ~ "Stress overload"
+
+  ) 
+  
+)
+gender_stress %>% gt::gt()
+```
+</details> 
+
+### Visualize the dataset
+
+Now we will visualize the association between gender and stress level by `ggplot()`. (See Figure \@ref(fig:fi))
+
+We could find that with males' proportion of *Stress overload* being less than that of females' (We have a poor amount of data from *Non-binary* so that this bar might not be representative enough), we could deduce that probably females are facing huge stress.
+
+```{r fi, fig.cap="First stage of proving Simpsons paradox"}
+tab_g_s_wp = table(gender_stress$gender, gender_stress$`stress_level`) %>% data.frame() %>% `names<-`(c("gender", "Stress", "Frequency"))
+#rm(tab_g_s_wp)
+ggplot(tab_g_s_wp, 
+       aes(x = tab_g_s_wp$gender, y = tab_g_s_wp$Frequency, fill = factor(tab_g_s_wp$Stress, levels = c('Stress overload', 'Optimum stress', 'Stress underload')))) +
+  geom_bar(stat = "identity", position="fill") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(x = "", y = "Proportion") +
+  theme_bw(base_size = 10) +
+  scale_fill_brewer(palette = "Set1")+
+  scale_fill_manual(name= 'Stress level',
+                    values = c('Red', '#00B64C', '#95EC0E'))
+```
+
+Then we introduce the third variable which is *paid work* column. To begin with, we have to assign different values to differnt group like what we have done previously. See \@ref(previously).
+
+```{r, echo=TRUE, eval=FALSE}
+gender_stress = gender_stress %>%  mutate(
+    `time_on_paid_work` = case_when(
+    gender_stress$`time_on_paid_work` <= 2 & gender_stress$time_on_paid_work >=0 ~ "0-2",
+    gender_stress$time_on_paid_work <= 6 & gender_stress$time_on_paid_work >=3 ~ "3-6",
+    gender_stress$time_on_paid_work <= 10 & gender_stress$time_on_paid_work >=7 ~ "7-10",
+    gender_stress$time_on_paid_work <= 14 & gender_stress$time_on_paid_work >=11 ~ "11-14",
+    gender_stress$time_on_paid_work <= 18 & gender_stress$time_on_paid_work >=15 ~ "15-18",
+    gender_stress$time_on_paid_work <= 22 & gender_stress$time_on_paid_work >=19 ~ "19-22",
+    gender_stress$time_on_paid_work <= 25 & gender_stress$time_on_paid_work >=23 ~ "23-25",
+    gender_stress$time_on_paid_work >= 26  ~ "26+"
+    )) 
+gender_stress %>% gt::gt()
+```
+
+<details>
+  <summary style="color:#CBCBCB">Click to have a look</summary>
+```{r, echo=FALSE, eval=TRUE}
+gender_stress = gender_stress %>%  mutate(
+    `time_on_paid_work` = case_when(
+    gender_stress$`time_on_paid_work` <= 2 & gender_stress$time_on_paid_work >=0 ~ "0-2",
+    gender_stress$time_on_paid_work <= 6 & gender_stress$time_on_paid_work >=3 ~ "3-6",
+    gender_stress$time_on_paid_work <= 10 & gender_stress$time_on_paid_work >=7 ~ "7-10",
+    gender_stress$time_on_paid_work <= 14 & gender_stress$time_on_paid_work >=11 ~ "11-14",
+    gender_stress$time_on_paid_work <= 18 & gender_stress$time_on_paid_work >=15 ~ "15-18",
+    gender_stress$time_on_paid_work <= 22 & gender_stress$time_on_paid_work >=19 ~ "19-22",
+    gender_stress$time_on_paid_work <= 25 & gender_stress$time_on_paid_work >=23 ~ "23-25",
+    gender_stress$time_on_paid_work >= 26  ~ "26+"
+    )) 
+gender_stress %>% gt::gt()
+```
+</details>
+
+We extract data about people feeling **Stress overload** from the dataset and calculate its proportion. Thereby, we have three columns which are exactly our basis for the proof og Simpsons paradox as below.
+
+```{r, echo=TRUE, eval=FALSE}
+tibble_w_g_p = tibble(gender_stress$time_on_paid_work, gender_stress$gender, gender_stress$`stress_level `)
+
+
+data_w_g_spwlevel = c("0-2", "3-6", "7-10", 
+                 "11-14", "15-18", "19-22", "23-25", "26+")
+tibble_w_g_p = tibble_w_g_p %>% 
+  mutate(
+    `gender_stress$time_on_paid_work` = factor(tibble_w_g_p$`gender_stress$time_on_paid_work`, levels = data_w_g_spwlevel)
+  ) %>% `names<-`(c("paid_work","gender","stress_level"))
+tab_wgsp = table(tibble_w_g_p$paid_work,  tibble_w_g_p$stress_level,tibble_w_g_p$gender)
+ww = ftable(tab_wgsp,row.vars =1,col.vars = 2:3)
+ww
+qe = data.frame(ww)
+names(qe)=c("workgroup", "stresslevel", "gender", "count")
+qel = qe %>%
+  tidyr::pivot_wider(id_cols = workgroup,
+  names_from = c(stresslevel, gender),
+  values_from = count,
+  names_sep = " ")
+percent = qe %>%
+  uncount(weights = count) %>%
+  group_by(gender, workgroup) %>%
+  summarise(rate_stressoverload = mean(stresslevel=="Stress overload"))
+```
+
+<details>
+  <summary style="color:#CBCBCB">Click to have a look</summary>
+```{r, echo=FALSE, eval=TRUE}
+tibble_w_g_p = tibble(gender_stress$time_on_paid_work, gender_stress$gender, gender_stress$`stress_level `)
+
+
+data_w_g_spwlevel = c("0-2", "3-6", "7-10", 
+                 "11-14", "15-18", "19-22", "23-25", "26+")
+tibble_w_g_p = tibble_w_g_p %>% 
+  mutate(
+    `gender_stress$time_on_paid_work` = factor(tibble_w_g_p$`gender_stress$time_on_paid_work`, levels = data_w_g_spwlevel)
+  ) %>% `names<-`(c("paid_work","gender","stress_level"))
+tab_wgsp = table(tibble_w_g_p$paid_work,  tibble_w_g_p$stress_level,tibble_w_g_p$gender)
+ww = ftable(tab_wgsp,row.vars =1,col.vars = 2:3)
+ww
+qe = data.frame(ww)
+names(qe)=c("workgroup", "stresslevel", "gender", "count")
+qel = qe %>%
+  tidyr::pivot_wider(id_cols = workgroup,
+  names_from = c(stresslevel, gender),
+  values_from = count,
+  names_sep = " ")
+percent = qe %>%
+  uncount(weights = count) %>%
+  group_by(gender, workgroup) %>%
+  summarise(rate_stressoverload = mean(stresslevel=="Stress overload"))
+```
+</details>
+
+Then we grouped them by **paid work** and see what is the proportion of different genders feeling stress overload in each group.See Figure \@ref(fig:relt).
+
+```{r relt, fig.cap="The relation reverses"}
+chart = percent %>%
+  ggplot() +
+  aes(x = workgroup, y = rate_stressoverload, fill = gender) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_minimal(base_size = 17) +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = scales::percent_format())+
+  theme(panel.grid.major.y = element_blank(), legend.position = "bottom") +
+  coord_flip()
+chart
+```
+From the figure below , we could see **Simpsons paradox** obviously from the fact that when introducing another variable **paid_work**, other than the last three groups, the proportion of males feeling overload pressure is always larger than that of females.
+
+# References
+
+American Psychological Association. (2015). *2015 Stress in America™*. https://www.apa.org/news/press/releases/stress/2015/snapshot
+
+Elfil, M., & Negida, A. (2017). Sampling methods in clinical research; an educational review. *Emergency*, 5(1).
+
+Tarr, G.(2020.a).*Collecting data* [PowerPoint slide]. Lecture02. Retrieved from https://pages.github.sydney.edu.au/DATA2002/2020/lectures/lec02.html#1
+
+Tarr, G.(2020.a).*Goodness of fit tests* [PowerPoint slide]. Lecture04. Retrieved from https://pages.github.sydney.edu.au/DATA2002/2020/lectures/lec04.html#1
